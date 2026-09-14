@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fuel Route Planner</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --muted: #5c5c5c;
+      --line: #d8d8d8;
+      --accent: #0b6e4f;
+      --bg: #f6f6f4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      padding: 1rem 1.25rem 0.25rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 650;
+    }
+    header p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0.75rem 1.25rem 1.25rem;
+      min-height: calc(100vh - 4.5rem);
+    }
+    form {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      height: fit-content;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    input {
+      font: inherit;
+      padding: 0.55rem 0.6rem;
+      border: 1px solid var(--line);
+    }
+    button {
+      font: inherit;
+      font-weight: 650;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 0.85rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    #status {
+      min-height: 1.2rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+    #status.error { color: #a40000; }
+    #summary {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    #map {
+      min-height: 560px;
+      border: 1px solid var(--line);
+      background: #dce4ea;
+    }
+    @media (max-width: 840px) {
+      .layout { grid-template-columns: 1fr; }
+      #map { min-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Fuel Route Planner</h1>
+    <p>
+      Demo map for the Django API. Routing and fuel planning run on the server;
+      this page never calls Geoapify directly.
+    </p>
+  </header>
+  <div class="layout">
+    <form id="route-form">
+      <label>
+        Start
+        <input id="start" name="start" required value="Dallas, TX" />
+      </label>
+      <label>
+        Finish
+        <input id="finish" name="finish" required value="Chicago, IL" />
+      </label>
+      <button type="submit" id="submit">Plan route</button>
+      <div id="status"></div>
+      <div id="summary"></div>
+    </form>
+    <div id="map" aria-label="Route map"></div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const map = L.map("map").setView([39.5, -98.35], 4);
+    // Basemap tiles are proxied by Django so GEOAPIFY_API_KEY never reaches the browser.
+    L.tileLayer("/map/tiles/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> ' +
+        '&copy; <a href="https://www.geoapify.com/">Geoapify</a>',
+    }).addTo(map);
+
+    let routeLayer = null;
+    let markerLayer = null;
+
+    const form = document.getElementById("route-form");
+    const statusEl = document.getElementById("status");
+    const summaryEl = document.getElementById("summary");
+    const submitBtn = document.getElementById("submit");
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle("error", isError);
+    }
+
+    function clearLayers() {
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+      }
+      if (markerLayer) {
+        map.removeLayer(markerLayer);
+        markerLayer = null;
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearLayers();
+      summaryEl.textContent = "";
+      setStatus("Planning route…");
+      submitBtn.disabled = true;
+
+      const payload = {
+        start: document.getElementById("start").value.trim(),
+        finish: document.getElementById("finish").value.trim(),
+      };
+
+      try {
+        const response = await fetch("/api/v1/routes/plan/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const message = (data.error && data.error.message) || JSON.stringify(data);
+          throw new Error(message);
+        }
+
+        routeLayer = L.geoJSON(data.route.geometry, {
+          style: { color: "#0b6e4f", weight: 5, opacity: 0.9 },
+        }).addTo(map);
+
+        markerLayer = L.layerGroup().addTo(map);
+        L.marker([data.start.latitude, data.start.longitude])
+          .bindPopup(`Start: ${data.start.label || data.start.input}`)
+          .addTo(markerLayer);
+        L.marker([data.finish.latitude, data.finish.longitude])
+          .bindPopup(`Finish: ${data.finish.label || data.finish.input}`)
+          .addTo(markerLayer);
+
+        for (const stop of data.fuel_plan.stops || []) {
+          const role = stop.is_origin_fueling ? "Origin fueling" : "Fuel stop";
+          L.circleMarker([stop.latitude, stop.longitude], {
+            radius: 7,
+            color: "#1a1a1a",
+            fillColor: stop.is_origin_fueling ? "#c45c26" : "#f0b429",
+            fillOpacity: 0.95,
+          })
+            .bindPopup(
+              `<strong>${stop.name}</strong><br/>` +
+              `${role}<br/>` +
+              `${stop.city}, ${stop.state}<br/>` +
+              `$${Number(stop.price_per_gallon).toFixed(3)}/gal<br/>` +
+              `Route mile ≈ ${Number(stop.route_mile).toFixed(1)}<br/>` +
+              `${Number(stop.gallons_to_buy).toFixed(2)} gal · ` +
+              `$${Number(stop.estimated_cost).toFixed(2)}`
+            )
+            .addTo(markerLayer);
+        }
+
+        map.fitBounds(routeLayer.getBounds(), { padding: [28, 28] });
+        setStatus("Route ready.");
+        summaryEl.textContent =
+          `${data.route.distance_miles} mi · ` +
+          `${data.route.duration_minutes} min · ` +
+          `${data.fuel_plan.stop_count} fuel stop(s) · ` +
+          `${data.fuel_plan.total_gallons} gal · ` +
+          `$${Number(data.fuel_plan.estimated_total_cost_usd).toFixed(2)} · ` +
+          `${data.meta.external_api_calls} provider call(s) · ` +
+          `${data.meta.processing_ms} ms`;
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[oc]
+*.pyc
+*.egg-info
+build/
+dist/
+wheels/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local geocode / pipeline working files
+data/geocode_batch_*.csv
+data/geocode_result_*.csv
+data/processed/prepare_stats.json
+
+# Employer-supplied assessment CSV (may be proprietary). Place locally; see data/README.md.
+data/fuel-prices-for-be-assessment.csv
+
+# Unused / regenerated coordinate dumps
+data/station_coordinates.json

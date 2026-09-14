@@ -1,0 +1,155 @@
+{
+  "info": {
+    "name": "Fuel Route API",
+    "description": "Demo collection for the fuel route planning take-home.\n\nImport with postman/Fuel_Route_API.postman_environment.json.\nMap UI: {{baseUrl}}/map/\nSwagger: {{baseUrl}}/api/docs/",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health/"
+      }
+    },
+    {
+      "name": "Short route (<500 mi) — Austin to Dallas",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start\": \"{{shortStart}}\",\n  \"finish\": \"{{shortFinish}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/",
+        "description": "Expect distance under 500 miles and typically a single origin fueling stop (plus any needed mid-route stops)."
+      }
+    },
+    {
+      "name": "Long route (>500 mi) — Dallas to Chicago",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start\": \"{{longStart}}\",\n  \"finish\": \"{{longFinish}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/",
+        "description": "Expect ~900+ miles, multiple fuel stops, meta.external_api_calls ≤ 3 when uncached, and fuel_plan.estimated_total_cost_usd populated from imported station prices."
+      }
+    },
+    {
+      "name": "Coordinate route — Austin to Dallas",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start\": {\n    \"latitude\": {{austinLat}},\n    \"longitude\": {{austinLon}}\n  },\n  \"finish\": {\n    \"latitude\": {{dallasLat}},\n    \"longitude\": {{dallasLon}}\n  }\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/",
+        "description": "Uncached coordinate requests should make exactly 1 Geoapify routing call (no geocode)."
+      }
+    },
+    {
+      "name": "Invalid location — unknown place",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start\": \"Nowhereville, ZZ\",\n  \"finish\": \"Chicago, IL\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/",
+        "description": "Expect HTTP 400 with error.code location_not_found (or invalid_location)."
+      }
+    },
+    {
+      "name": "Non-USA input — Toronto",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start\": \"Toronto, ON\",\n  \"finish\": \"Chicago, IL\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/",
+        "description": "Expect HTTP 400 invalid_location — outside the United States."
+      }
+    },
+    {
+      "name": "Validation — missing start",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"finish\": \"Chicago, IL\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/routes/plan/"
+      }
+    },
+    {
+      "name": "Map demo page",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/map/"
+      }
+    },
+    {
+      "name": "Swagger UI",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/docs/"
+      }
+    }
+  ]
+}
